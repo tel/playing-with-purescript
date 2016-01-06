@@ -2,9 +2,18 @@ var path = require("path");
 var HtmlWebpackPlugin = require("html-webpack-plugin");
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
 
+// Purescript Config
+var psc = {
+  srcs: [ "src[]=bower_components/purescript-*/src/**/*.purs",
+          "src[]=app/**/*.purs" ],
+  ffis: [ "ffi[]=bower_components/purescript-*/src/**/*.js",
+          "ffi[]=app/**/*.js"],
+  output: "output"
+};
+
 module.exports = {
 
-  entry: "./app/index.js",
+  entry: "./index.js",
   output: {
     path: path.join(__dirname, "public"),
     filename: "app.js"
@@ -13,10 +22,22 @@ module.exports = {
   module: {
     loaders: [
       {
+        test: /\.purs$/,
+        loader: "purs-loader?output=" + psc.output + "&" + psc.srcs.concat(psc.ffis).join("&")
+      },
+      {
         test:   /\.css$/,
         loader: "style-loader!css-loader!postcss-loader"
       }
     ]
+  },
+
+  resolve: {
+    modulesDirectories: [
+      "node_modules",
+      "bower_components/purescript-prelude/src"
+    ],
+    extensions: ["", ".js"]
   },
 
   plugins: [
@@ -37,8 +58,8 @@ module.exports = {
         // https://github.com/postcss/autoprefixer
       , require("autoprefixer")()
 
-      //   // https://github.com/stylelint/stylelint
-      // , require("stylelint")()
+        // https://github.com/stylelint/stylelint
+      , require("stylelint")()
 
         // https://github.com/peterramsing/lost
       , require("lost")()

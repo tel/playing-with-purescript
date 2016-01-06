@@ -1,12 +1,17 @@
 {
   "name": "purs1",
   "version": "1.0.0",
+  "scripts": {
+    "start": "./node_modules/webpack-dev-server/bin/webpack-dev-server.js --hot"
+  },
   "devDependencies": {
     "autoprefixer": "^6.2.3",
     "colorguard": "^1.0.1",
     "css-loader": "^0.23.1",
     "cssnano": "^3.4.0",
     "doiuse": "^2.2.1",
+    "extract-text-webpack-plugin": "^1.0.0",
+    "html-webpack-plugin": "^1.7.0",
     "lost": "^6.6.3",
     "postcss-each": "^0.7.1",
     "postcss-font-magician": "^1.4.0",
@@ -15,7 +20,13 @@
     "postcss-nested": "^1.0.0",
     "postcss-short": "^1.4.0",
     "postcss-vertical-rhythm": "^1.1.5",
+    "purescript": "^0.7.6",
     "purs-loader": "^0.4.0",
-    "style-loader": "^0.13.0"
+    "style-loader": "^0.13.0",
+    "stylelint": "^3.2.0",
+    "virtual-dom": "^2.1.1",
+    "webpack": "^1.12.9",
+    "webpack-dev-server": "^1.14.0",
+    "webpack-sources": "^0.1.0"
   }
 }
