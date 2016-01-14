@@ -5,9 +5,9 @@ var ExtractTextPlugin = require("extract-text-webpack-plugin");
 // Purescript Config
 var psc = {
   srcs: [ "src[]=bower_components/purescript-*/src/**/*.purs",
-          "src[]=app/**/*.purs" ],
+          "src[]=src/**/*.purs" ],
   ffis: [ "ffi[]=bower_components/purescript-*/src/**/*.js",
-          "ffi[]=app/**/*.js"],
+          "ffi[]=src/**/*.js"],
   output: "output"
 };
 
@@ -45,7 +45,7 @@ module.exports = {
     new HtmlWebpackPlugin({
       title: "Purs Test",
       hash: true,
-      template: "./app/index.html",
+      template: "./src/index.html",
       inject: "body"
     })
   ],

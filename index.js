@@ -1,5 +1,3 @@
 
-require("./app/styles/main.css");
-var Core = require("./app/Core.purs");
-
-Core.main()
+require("./src/styles/main.css");
+var Core = require("./src/Core.purs");

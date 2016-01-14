@@ -1,0 +1,68 @@
+
+module UiFi.Markup.Build where
+
+import           Control.Monad
+import           Control.Monad.State
+import           Data.Array               (foldM)
+import           Data.Exists
+import           Data.Foldable            (foldl)
+import           Data.Function            (runFn2)
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Nullable            (toNullable)
+import           Data.StrMap              (StrMap (), empty, insert, lookup)
+import           Data.Traversable         (traverse)
+import           Data.Tuple               (Tuple (..))
+import           Prelude
+import qualified UiFi.Internal.VirtualDOM as VD
+import           UiFi.Markup
+
+type MemoInitFin =
+  { initializers :: StrMap VD.Props
+  , finalizers :: StrMap VD.Props
+  }
+
+buildVTree :: Markup -> MemoInitFin -> Tuple VD.VTree MemoInitFin
+buildVTree (Markup xs) memo = 
+  case (runState (traverse toVTree xs) memo) of
+    (Tuple tree newmemo) -> Tuple (VD.vnode nil "div" nil mempty tree) newmemo
+  where
+    nil = toNullable Nothing
+
+toVTree :: Node -> State MemoInitFin VD.VTree
+toVTree (Text s) = return $ VD.vtext s
+toVTree (Element ns tag props (Markup childs)) = do 
+  vprops <- foldM (\acc prop -> (append acc) <$> toVProp prop) mempty props
+  let key = foldl findKey Nothing props
+  tree <- traverse toVTree childs
+  return $ VD.vnode (toNullable ns) tag (toNullable key) vprops tree
+
+findKey :: Maybe String -> Prop -> Maybe String
+findKey _ (KeyP key) = Just key
+findKey r _ = r
+
+toVProp :: Prop -> State MemoInitFin VD.Props
+toVProp (AttrP n v)          = pure $ runFn2 VD.attrProp n v
+toVProp (HandlerP n ee)      = pure $ runEventHandler (\f -> runFn2 VD.handlerProp n f) ee
+toVProp (PropP n ee)         = pure $ runExists (\(PropE e) -> runFn2 VD.prop n e) ee
+toVProp (InitializerP key f) = findProp _.initializers (\is -> _ {initializers = is}) key $ 
+                                 runInitializer (\i -> runFn2 VD.initializer key i) f
+toVProp (FinalizerP key f)   = findProp _.finalizers (\fs -> _ {finalizers = fs}) key $ 
+                                 runFinalizer (\i -> runFn2 VD.finalizer key i) f
+toVProp (KeyP key)           = pure mempty  
+
+-- Looks for an initializer/finalizer with the same key. If it exists, it uses that one to avoid
+-- Virtual Dom removing and adding the node. If it doesn't exist, this function adds it to the 
+-- correct StringMap in the state with the unique key
+findProp:: (MemoInitFin -> StrMap VD.Props) -> 
+           (StrMap VD.Props -> MemoInitFin -> MemoInitFin) -> 
+           UniqueStr -> 
+           VD.Props -> 
+           State MemoInitFin VD.Props
+findProp getter setter key newprop = do
+  oldprops <- gets getter
+  case lookup key oldprops of 
+       (Nothing) -> do
+         modify $ setter $ insert key newprop oldprops
+         return newprop
+       (Just oldprop) -> return oldprop

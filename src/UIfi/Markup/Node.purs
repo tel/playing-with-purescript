@@ -1,0 +1,45 @@
+
+module UiFi.Markup.Node where
+
+import           Data.Foldable        (fold)
+import           Data.Maybe
+import           Prelude
+import           UiFi.Markup.ElConfig
+
+type NS = String
+type TagName = String
+
+data Node
+  = Text String
+
+  | Element 
+    { ns :: Maybe String
+    , tag :: String
+    , config :: ElConfig
+    , children :: Array Node
+    }
+
+  -- | Wrapped nodes are subject to initialization and finalization upon
+  -- creation and destruction.
+  -- | Wrapped 
+  --   { initizalize :: Initializer
+  --   , finalize :: Finalizer
+  --   , node :: Node
+  --   }
+
+el_ :: Maybe NS -> TagName -> Array ElConfig -> Array Node -> Node
+el_ ns tag configs children = 
+  Element { ns: ns
+          , tag: tag
+          , config: fold configs
+          , children: children 
+          }
+
+elNS :: NS -> TagName -> Array ElConfig -> Array Node -> Node
+elNS ns = el_ (Just ns)
+
+el :: TagName -> Array ElConfig -> Array Node -> Node
+el = el_ Nothing
+
+text :: String -> Node
+text = Text
