@@ -14,6 +14,7 @@ module Data.IntMap (
 
     IntMap ()
   , empty
+  , singleton
   , lookup
   , insert
   , insertWithKey
@@ -26,6 +27,7 @@ module Data.IntMap (
 
   ) where
 
+import           Data.Foldable        (Foldable)
 import           Data.IntMap.Internal
 import           Data.Maybe
 import           Data.Monoid
@@ -48,11 +50,26 @@ instance intMapMonoid :: (Semigroup a) => Monoid (IntMap a) where
 instance intMapFunctor :: Functor IntMap where
   map f = mapWithKey (\_ -> f)
 
+instance intMapFoldable :: Foldable IntMap where
+  foldMap = foldMap_
+  foldr = foldr_
+  foldl = foldl_
+
+instance intMapEq :: (Eq a) => Eq (IntMap a) where
+  eq Empty Empty = true
+  eq (Lf k1 v1) (Lf k2 v2) = eq k1 k2 && eq v1 v2
+  eq (Br p1 m1 l1 r1) (Br p2 m2 l2 r2) =
+    eq m1 m2 && eq p1 p2 && eq l1 l2 && eq r1 r2
+  eq _ _ = false
+
 -- Public API
 ----------------------------------------------------------------------------
 
 empty :: forall a . IntMap a
 empty = Empty
+
+singleton :: forall a . Int -> a -> IntMap a
+singleton k a = Lf k a
 
 lookup :: forall a . Int -> IntMap a -> Maybe a
 lookup _ Empty = Nothing
@@ -126,9 +143,6 @@ mergeWithKey splat = go where
         (prefixAsKey l_p) l_m l
         (prefixAsKey r_p) r_m r
 
--- Private functions
-----------------------------------------------------------------------------
-
 mapWithKey :: forall a b . (Int -> a -> b) -> IntMap a -> IntMap b
 mapWithKey f = go where
   go m = 
@@ -136,6 +150,27 @@ mapWithKey f = go where
       Empty -> Empty
       Lf k a -> Lf k (f k a)
       Br p m l r -> Br p m (go l) (go r)
+
+-- Private functions
+----------------------------------------------------------------------------
+
+foldMap_ :: forall a m . (Monoid m) => (a -> m) -> IntMap a -> m
+foldMap_ f = go where
+  go Empty = mempty
+  go (Lf _ x) = f x
+  go (Br _ _ l r) = go l <> go r
+
+foldl_ :: forall a b. (b -> a -> b) -> b -> IntMap a -> b
+foldl_ f = go where
+  go z Empty = z
+  go z (Lf _ a) = f z a
+  go z (Br _ _ l r) = go (go z l) r
+
+foldr_ :: forall a b. (a -> b -> b) -> b -> IntMap a -> b
+foldr_ f = go where
+  go z Empty = z
+  go z (Lf _ a) = f a z
+  go z (Br _ _ l r) = go (go z r) l
 
 -- | Smart branch constructor. Compresses empty trees away.
 br :: forall a . Prefix -> Mask -> IntMap a -> IntMap a -> IntMap a
