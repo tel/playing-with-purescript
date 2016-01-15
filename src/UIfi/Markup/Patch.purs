@@ -3,10 +3,15 @@ module UiFi.Markup.Patch where
 
 import           Control.Monad          (unless)
 import           Control.Monad.Eff
+import           Control.Monad.ST
+import qualified Data.Array             as A
+import           Data.Array.Unsafe      (unsafeIndex)
+import           Data.Function
 import           Data.IntMap            (IntMap ())
 import qualified Data.IntMap            as IntMap
 import           Data.Maybe
 import           Data.Maybe.Unsafe      (fromJust)
+import           Data.Nullable          (Nullable (), toNullable)
 import           Data.StrMap            (StrMap ())
 import qualified Data.StrMap            as StrMap
 import           Data.Traversable       (for)
@@ -54,32 +59,66 @@ patch el (PatchSet ps) = do
 
 ----------------------------------------------------------------------------
 
-foreign import patchRemove :: forall eff . HTMLElement -> Eff (dom :: DOM | eff) Unit
-foreign import patchInsert :: forall eff . HTMLElement -> HTMLElement -> Eff (dom :: DOM | eff) Unit
-foreign import patchText :: forall eff . HTMLElement -> String -> Eff (dom :: DOM | eff) Unit
-foreign import patchNode :: forall eff . HTMLElement -> HTMLElement -> Eff (dom :: DOM | eff) Unit
+foreign import patchRemove 
+  :: forall eff . Fn1 HTMLElement (Eff (dom :: DOM | eff) Unit)
+foreign import patchInsert 
+  :: forall eff . Fn2 HTMLElement HTMLElement (Eff (dom :: DOM | eff) Unit)
+foreign import patchText 
+  :: forall eff . Fn2 HTMLElement String (Eff (dom :: DOM | eff) Unit)
+foreign import patchNode 
+  :: forall eff . Fn2 HTMLElement HTMLElement (Eff (dom :: DOM | eff) Unit)
+foreign import childNodes 
+  :: forall eff . Fn1 HTMLElement (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import removeFrom 
+  :: forall eff . Fn2 HTMLElement HTMLElement (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import insertBefore 
+  :: forall eff . Fn3 HTMLElement (Nullable HTMLElement) HTMLElement (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import clearAttr 
+  :: forall eff . Fn2 HTMLElement String (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import setAttr 
+  :: forall eff . Fn3 HTMLElement String String (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import clearStyle 
+  :: forall eff . Fn2 HTMLElement String (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import setStyle 
+  :: forall eff . Fn3 HTMLElement String String (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import clearListener 
+  :: forall eff . Fn2 HTMLElement String (Eff (dom :: DOM | eff) (Array HTMLElement))
+foreign import setListener 
+  :: forall eff . Fn3 HTMLElement String Listener (Eff (dom :: DOM | eff) (Array HTMLElement))
+
+-- TODO: SORT OF! Listeners have to be something more sophisticate than that...
 
 patch1 :: forall eff . HTMLElement -> Patch -> Eff (dom :: DOM | eff) Unit
 patch1 el p = 
   case p of
     PatchRemove -> 
-      patchRemove el
+      runFn1 patchRemove el
     PatchInsert vnode -> 
-      patchInsert el (build vnode)
+      runFn2 patchInsert el (build vnode)
     PatchText string -> 
-      patchText el string
+      runFn2 patchText el string
     PatchNode vnode -> 
-      patchNode el (build vnode)
-    PatchOrder moves -> do
-      -- (1) For each action in "removes"
-      --     (1) take the remove.from-th child
-      --     (2) cache it against its key if the key exists
-      --     (3) remove it from `el`
-      -- (2) For each action in "inserts"
-      --     (1) grab the node, foundNode, from the cache by key
-      --     (2) if insert.to is larger than the list of children
-      --         - then el.insertBefore(foundNode, null)
-      --         - else el.insertBefore(foundNode, insert.to-th child node)
+      runFn2 patchNode el (build vnode)
+    PatchOrder moves -> runST do
+      cacheRef <- newSTRef StrMap.empty
+      children <- runFn1 childNodes el
+      for moves.removes \remove -> do
+        let child = unsafeIndex children remove.from
+        runFn2 removeFrom el child
+        case remove.key of
+          Nothing -> return unit
+          Just k -> do 
+            modifySTRef cacheRef (StrMap.insert k child)
+            return unit
+
+      cache <- readSTRef cacheRef
+      for moves.inserts \insert -> do
+        let child = fromJust (StrMap.lookup insert.key cache)
+        case A.index children insert.to of
+          Nothing -> 
+            runFn3 insertBefore el (toNullable Nothing) child
+          Just nextChild -> 
+            runFn3 insertBefore el (toNullable (Just nextChild)) child
       return unit
       
     PatchAttrs attrs -> do
