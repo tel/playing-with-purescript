@@ -37,8 +37,8 @@ exports.buildElement = function(spec) {
     element.style[sty.name] = sty.value;
   });
 
-  // (4) Store the key; clobber user
-  element.setAttribute("uifi-key", spec.key);
+  // (4) Store the key; clobber user as needed
+  if (spec.key) { element.setAttribute("uifi-key", spec.key); }
 
   // (5) Construct a listener map (for delegation later)
   var listeners = {};
@@ -48,7 +48,7 @@ exports.buildElement = function(spec) {
   });
 
   // (6) Append the listener map
-  element.setAttribute("uifi-listeners", listeners);
+  element["uifi-listeners"] = listeners;
 
   // (7) Append all of the children
   spec.children.forEach(function (child) {

@@ -2,6 +2,8 @@
 module UiFi.Markup.Patch where
 
 import           Control.Monad.Eff
+import           Data.IntMap          (IntMap ())
+import qualified Data.IntMap          as IntMap
 import           Data.Map             (Map ())
 import qualified Data.Map             as Map
 import           Data.Maybe
@@ -46,9 +48,6 @@ instance patchKeyOrd :: Ord PatchKey where
 
 newtype PatchSet = PatchSet { current :: Node, patches :: IntMap (Array Patch) }
 
-type ElSet = IntMap HTMLElement
-
-type IntMap a = Map Int a
 
 ----------------------------------------------------------------------------
 
@@ -56,14 +55,6 @@ patch :: forall eff . HTMLElement -> PatchSet -> Eff (dom :: DOM | eff) HTMLElem
 patch el ps = do
   -- if no patches have numeric indices, return immediately: we're a no-op
   return el
-
--- | For a given set of depth-first traversal indices, create a mapping from
--- that index to the actual element
-domIndex :: HTMLElement -> Node -> Array Int -> ElSet
-domIndex root node indices = domIndex' (Tuple root 0) node indices mempty
-
-domIndex' :: Tuple HTMLElement Int -> Node -> Array Int -> ElSet -> ElSet
-domIndex' (Tuple root rootIndex) node indices els = els
 
 ----------------------------------------------------------------------------
 

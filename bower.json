@@ -14,6 +14,8 @@
     "purescript-sets": "~0.5.5",
     "purescript-integers": "~0.2.1",
     "purescript-math": "~0.2.0",
-    "purescript-intmaps": "~0.0.8"
+    "purescript-intmaps": "~0.0.8",
+    "purescript-st": "~0.1.1",
+    "purescript-control": "~0.3.2"
   }
 }
