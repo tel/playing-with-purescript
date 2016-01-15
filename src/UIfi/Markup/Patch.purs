@@ -1,21 +1,22 @@
 
 module UiFi.Markup.Patch where
 
+import           Control.Monad          (unless)
 import           Control.Monad.Eff
-import           Data.IntMap          (IntMap ())
-import qualified Data.IntMap          as IntMap
-import           Data.Map             (Map ())
-import qualified Data.Map             as Map
+import           Data.IntMap            (IntMap ())
+import qualified Data.IntMap            as IntMap
 import           Data.Maybe
-import           Data.Monoid
-import           Data.StrMap          (StrMap ())
-import qualified Data.StrMap          as StrMap
-import           Data.Tuple           (Tuple (Tuple))
-import           DOM                  (DOM ())
-import           DOM.HTML.Types       (HTMLElement ())
+import           Data.Maybe.Unsafe      (fromJust)
+import           Data.StrMap            (StrMap ())
+import qualified Data.StrMap            as StrMap
+import           Data.Traversable       (for)
+import           DOM                    (DOM ())
+import           DOM.HTML.Types         (HTMLElement ())
 import           Prelude
+import           UiFi.Markup.DomIndex   (domIndex)
 import           UiFi.Markup.Listener
 import           UiFi.Markup.Node
+import           UiFi.Markup.Node.Build (build)
 
 type MoveSet =
   { removes :: Array { from :: Int, key :: Maybe String }
@@ -23,8 +24,7 @@ type MoveSet =
   }
 
 data Patch
-  = PatchNoOp
-  | PatchRemove Node
+  = PatchRemove
   | PatchInsert Node
   | PatchText String
   | PatchNode Node
@@ -33,59 +33,43 @@ data Patch
   | PatchStyles (StrMap (Maybe String))
   | PatchListeners (StrMap (Maybe Listener))
 
-data PatchKey = A | I Int
-
-instance patchKeyEq :: Eq PatchKey where
-  eq A A = true
-  eq (I i1) (I i2) = i1 == i2
-  eq _ _ = false
-
-instance patchKeyOrd :: Ord PatchKey where
-  compare A A = EQ
-  compare A _ = LT
-  compare (I _) A = GT
-  compare (I i1) (I i2) = compare i1 i2
-
 newtype PatchSet = PatchSet { current :: Node, patches :: IntMap (Array Patch) }
 
+----------------------------------------------------------------------------
+
+-- | Apply a `PatchSet` to an `HTMLElement`.
+patch :: forall eff . HTMLElement -> PatchSet -> Eff (dom :: DOM | eff) Unit
+patch el (PatchSet ps) = do
+  unless (IntMap.null ps.patches) do 
+    for indices applyPatches 
+    return unit
+  where
+    indices = IntMap.indices ps.patches
+    index = domIndex indices el ps.current
+    applyPatches ix = do
+      let patchList = fromJust (IntMap.lookup ix ps.patches)
+          domNode = fromJust (IntMap.lookup ix index)
+      for patchList (patch1 domNode)
+      return unit
 
 ----------------------------------------------------------------------------
 
-patch :: forall eff . HTMLElement -> PatchSet -> Eff (dom :: DOM | eff) HTMLElement
-patch el ps = do
-  -- if no patches have numeric indices, return immediately: we're a no-op
-  return el
+foreign import patchRemove :: forall eff . HTMLElement -> Eff (dom :: DOM | eff) Unit
+foreign import patchInsert :: forall eff . HTMLElement -> HTMLElement -> Eff (dom :: DOM | eff) Unit
+foreign import patchText :: forall eff . HTMLElement -> String -> Eff (dom :: DOM | eff) Unit
+foreign import patchNode :: forall eff . HTMLElement -> HTMLElement -> Eff (dom :: DOM | eff) Unit
 
-----------------------------------------------------------------------------
-
-patch1 :: forall eff . HTMLElement -> Patch -> Eff (dom :: DOM | eff) HTMLElement
+patch1 :: forall eff . HTMLElement -> Patch -> Eff (dom :: DOM | eff) Unit
 patch1 el p = 
   case p of
-    PatchNoOp -> return el
-
-    PatchRemove vnode -> do
-      -- (1) get parent of el
-      -- (2) delete el from parent
-      -- (3) use vnode to try to destroy widgets if needed
-      return el
-
-    PatchInsert vnode -> do
-      -- (1) render vnode into an HTMLElement
-      -- (2) append the result on to `el`
-      return el
-
-    PatchText string -> do
-      -- (1) If `el` is a text node, replace its text
-      -- (2) Else build a new text node and use `el.replaceNode` to swap it in
-      return el
-
-    -- PatchWidget 
-
-    PatchNode vnode -> do
-      -- (1) build a new node
-      -- (2) el.replaceNode to swap it in
-      return el
-
+    PatchRemove -> 
+      patchRemove el
+    PatchInsert vnode -> 
+      patchInsert el (build vnode)
+    PatchText string -> 
+      patchText el string
+    PatchNode vnode -> 
+      patchNode el (build vnode)
     PatchOrder moves -> do
       -- (1) For each action in "removes"
       --     (1) take the remove.from-th child
@@ -96,25 +80,25 @@ patch1 el p =
       --     (2) if insert.to is larger than the list of children
       --         - then el.insertBefore(foundNode, null)
       --         - else el.insertBefore(foundNode, insert.to-th child node)
-      return el
+      return unit
       
     PatchAttrs attrs -> do
       -- for each name in attrs (should include all previous ones!)
       -- - if new value is Remove
       --   - then: update attr to "" (or null, but we assume all strings?)
       --   - else: update attr to new value
-      return el
+      return unit
 
     PatchStyles styles -> do
       -- for each name in styles (should include all previous ones!)
       -- - if new value is Remove
       --   - then: update style to ""
       --   - else: update style to new value
-      return el
+      return unit
 
     PatchListeners listeners -> do
       -- for each name in listeners (should include all previous ones!)
       -- - if new value is Remove
       --   - then: update listener to undefined
       --   - else: update listener to new value
-      return el
+      return unit
